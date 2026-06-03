@@ -24,7 +24,7 @@
         }
         .container {
             width: 100%;
-            max-width: 900px; /* Made slightly wider to fit new columns */
+            max-width: 900px; 
         }
         .screen { display: none; }
         .screen.active { display: block; animation: fadeIn 0.5s; }
@@ -103,7 +103,7 @@
             border-bottom: 1px solid #333;
         }
         th { background-color: #2A2A2A; }
-        .col-gd { color: #88c0d0; } /* Special color for goal difference */
+        .col-gd { color: #88c0d0; } 
 
         /* Match Card */
         .match-card {
@@ -258,13 +258,11 @@
     // Current match score tracker
     let currentScore = { A: 0, B: 0 };
 
-    // Navigation Helper
     function showScreen(screenId) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         document.getElementById(screenId).classList.add('active');
     }
 
-    // Generate Inputs for Team Names
     function generateTeamInputs() {
         const count = parseInt(document.getElementById('numTeams').value) || 0;
         const container = document.getElementById('teamInputsContainer');
@@ -274,7 +272,6 @@
         }
     }
 
-    // Generate Setup Boxes for Matches
     function generateMatchInputs() {
         const count = parseInt(document.getElementById('numMatches').value) || 0;
         const container = document.getElementById('matchInputsContainer');
@@ -292,7 +289,6 @@
         updateMatchDropdowns();
     }
 
-    // Sync Team Names into the Match Setup Dropdowns
     function updateMatchDropdowns() {
         const inputs = document.querySelectorAll('.team-name-input');
         const optionsHTML = Array.from(inputs).map((input, index) => 
@@ -306,7 +302,6 @@
         });
     }
 
-    // Start the Tournament & Switch Screens
     function startTournament() {
         const teamInputs = document.querySelectorAll('.team-name-input');
         const numQualifiers = parseInt(document.getElementById('numQualifiers').value);
@@ -314,12 +309,9 @@
         if(teamInputs.length < 2) return alert("Please enter at least 2 teams.");
         if(numQualifiers % 2 !== 0 || numQualifiers > teamInputs.length) return alert("Qualifiers must be an even number and not exceed total teams.");
 
-        // Initialize Teams with new GF, GA, and GD properties
         teams = Array.from(teamInputs).map((input, idx) => ({
             id: idx, name: input.value || `Team ${idx+1}`,
-            p: 0, w: 0, l: 0, d: 0, 
-            gf: 0, ga: 0, gd: 0, // <-- ADDED GOAL TRACKING HERE
-            pts: 0
+            p: 0, w: 0, l: 0, d: 0, gf: 0, ga: 0, gd: 0, pts: 0
         }));
 
         const matchAs = document.querySelectorAll('.match-team-a');
@@ -341,19 +333,16 @@
         showScreen('screen-dashboard');
     }
 
-    // Render the Points Table
     function renderTable() {
-        // Updated Sorting Logic: Points -> Goal Difference -> Goals For
         let sortedTeams = [...teams].sort((a, b) => {
-            if (b.pts !== a.pts) return b.pts - a.pts; // 1st check: Points
-            if (b.gd !== a.gd) return b.gd - a.gd;     // 2nd check: Goal Difference
-            return b.gf - a.gf;                        // 3rd check: Goals For
+            if (b.pts !== a.pts) return b.pts - a.pts; 
+            if (b.gd !== a.gd) return b.gd - a.gd;     
+            return b.gf - a.gf;                        
         });
         
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
         sortedTeams.forEach((t, index) => {
-            // Replaced the simple table row with one containing GF, GA, and GD
             tbody.innerHTML += `
                 <tr>
                     <td>${index + 1}</td>
@@ -371,7 +360,6 @@
         });
     }
 
-    // Load the Match Data into the Card
     function loadNextMatch() {
         currentScore = { A: 0, B: 0 };
         updateScoreDisplay();
@@ -402,7 +390,6 @@
         document.getElementById('teamBName').innerText = teamB.name;
     }
 
-    // +/- Button Logic
     function updateScore(teamKey, amount) {
         if (currentScore[teamKey] + amount >= 0) {
             currentScore[teamKey] += amount;
@@ -415,62 +402,71 @@
         document.getElementById('teamBScore').innerText = currentScore.B;
     }
 
-    // Process Match Completion
+    // --- UPDATED MATCH COMPLETION LOGIC ---
     function completeMatch() {
         if (isKnockout && currentScore.A === currentScore.B) {
             alert("Knockout matches cannot end in a draw! Please adjust goals for a winner.");
             return;
         }
 
-        let matchData;
+        let tA, tB, matchData;
 
+        // 1. Identify which teams are playing based on the stage
         if (!isKnockout) {
             matchData = groupMatches[currentMatchIndex];
-            let tA = teams[matchData.teamAIndex];
-            let tB = teams[matchData.teamBIndex];
-
-            // Update Matches Played
-            tA.p++; tB.p++;
-
-            // --> NEW: UPDATE GOALS FOR, GOALS AGAINST, AND GOAL DIFFERENCE <--
-            tA.gf += currentScore.A;
-            tA.ga += currentScore.B;
-            tA.gd = tA.gf - tA.ga;
-
-            tB.gf += currentScore.B;
-            tB.ga += currentScore.A;
-            tB.gd = tB.gf - tB.ga;
-
-            // Update Wins/Losses/Draws
-            if (currentScore.A > currentScore.B) {
-                tA.w++; tB.l++;
-                tA.pts += 3;
-            } else if (currentScore.B > currentScore.A) {
-                tB.w++; tA.l++;
-                tB.pts += 3;
-            } else {
-                tA.d++; tB.d++;
-                tA.pts += 1; tB.pts += 1;
-            }
-            renderTable();
+            tA = teams[matchData.teamAIndex];
+            tB = teams[matchData.teamBIndex];
         } else {
             matchData = knockoutMatches[currentMatchIndex];
-            const winner = currentScore.A > currentScore.B ? matchData.teamA : matchData.teamB;
-            matchData.winner = winner; 
+            tA = matchData.teamA;
+            tB = matchData.teamB;
+            
+            // Mark the winner for the knockout bracket progression
+            matchData.winner = currentScore.A > currentScore.B ? tA : tB; 
         }
 
+        // 2. Update stats for BOTH stages 
+        tA.p++; 
+        tB.p++;
+
+        tA.gf += currentScore.A;
+        tA.ga += currentScore.B;
+        tA.gd = tA.gf - tA.ga;
+
+        tB.gf += currentScore.B;
+        tB.ga += currentScore.A;
+        tB.gd = tB.gf - tB.ga;
+
+        // 3. Update Wins/Losses/Points
+        if (currentScore.A > currentScore.B) {
+            tA.w++; 
+            tB.l++;
+            tA.pts += 3;
+        } else if (currentScore.B > currentScore.A) {
+            tB.w++; 
+            tA.l++;
+            tB.pts += 3;
+        } else {
+            tA.d++; 
+            tB.d++;
+            tA.pts += 1; 
+            tB.pts += 1;
+        }
+
+        // 4. Re-render the table so changes are visible instantly
+        renderTable();
+
+        // 5. Move to the next match
         currentMatchIndex++;
         loadNextMatch();
     }
 
-    // Transition from Group Stage to Knockout
     function startKnockoutStage() {
         isKnockout = true;
         currentMatchIndex = 0;
         
         const numQualifiers = parseInt(document.getElementById('numQualifiers').value);
         
-        // Re-run the tie-breaker sort one last time before picking qualifiers
         let sortedTeams = [...teams].sort((a, b) => {
             if (b.pts !== a.pts) return b.pts - a.pts; 
             if (b.gd !== a.gd) return b.gd - a.gd;     
@@ -478,7 +474,7 @@
         });
         
         knockoutTeams = sortedTeams.slice(0, numQualifiers); 
-        knockoutTeams.sort(() => Math.random() - 0.5); // Shuffle matches
+        knockoutTeams.sort(() => Math.random() - 0.5); 
         
         alert(`Group stage complete! Top ${numQualifiers} teams are advancing to the Qualifiers.`);
         
