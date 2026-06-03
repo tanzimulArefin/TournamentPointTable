@@ -24,7 +24,7 @@
         }
         .container {
             width: 100%;
-            max-width: 800px;
+            max-width: 900px; /* Made slightly wider to fit new columns */
         }
         .screen { display: none; }
         .screen.active { display: block; animation: fadeIn 0.5s; }
@@ -103,6 +103,7 @@
             border-bottom: 1px solid #333;
         }
         th { background-color: #2A2A2A; }
+        .col-gd { color: #88c0d0; } /* Special color for goal difference */
 
         /* Match Card */
         .match-card {
@@ -196,6 +197,9 @@
                     <th>W</th>
                     <th>L</th>
                     <th>D</th>
+                    <th title="Goals For">GF</th>
+                    <th title="Goals Against">GA</th>
+                    <th title="Goal Difference">GD</th>
                     <th>Pts</th>
                 </tr>
             </thead>
@@ -296,7 +300,7 @@
         ).join('');
         
         document.querySelectorAll('.match-team-a, .match-team-b').forEach(select => {
-            const val = select.value; // keep selected value if possible
+            const val = select.value; 
             select.innerHTML = optionsHTML;
             select.value = val;
         });
@@ -304,20 +308,20 @@
 
     // Start the Tournament & Switch Screens
     function startTournament() {
-        // Validation
         const teamInputs = document.querySelectorAll('.team-name-input');
         const numQualifiers = parseInt(document.getElementById('numQualifiers').value);
         
         if(teamInputs.length < 2) return alert("Please enter at least 2 teams.");
         if(numQualifiers % 2 !== 0 || numQualifiers > teamInputs.length) return alert("Qualifiers must be an even number and not exceed total teams.");
 
-        // Initialize Teams
+        // Initialize Teams with new GF, GA, and GD properties
         teams = Array.from(teamInputs).map((input, idx) => ({
             id: idx, name: input.value || `Team ${idx+1}`,
-            p: 0, w: 0, l: 0, d: 0, pts: 0
+            p: 0, w: 0, l: 0, d: 0, 
+            gf: 0, ga: 0, gd: 0, // <-- ADDED GOAL TRACKING HERE
+            pts: 0
         }));
 
-        // Initialize Group Matches
         const matchAs = document.querySelectorAll('.match-team-a');
         const matchBs = document.querySelectorAll('.match-team-b');
         
@@ -339,12 +343,17 @@
 
     // Render the Points Table
     function renderTable() {
-        // Sort by Points (Highest first)
-        let sortedTeams = [...teams].sort((a, b) => b.pts - a.pts);
+        // Updated Sorting Logic: Points -> Goal Difference -> Goals For
+        let sortedTeams = [...teams].sort((a, b) => {
+            if (b.pts !== a.pts) return b.pts - a.pts; // 1st check: Points
+            if (b.gd !== a.gd) return b.gd - a.gd;     // 2nd check: Goal Difference
+            return b.gf - a.gf;                        // 3rd check: Goals For
+        });
         
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
         sortedTeams.forEach((t, index) => {
+            // Replaced the simple table row with one containing GF, GA, and GD
             tbody.innerHTML += `
                 <tr>
                     <td>${index + 1}</td>
@@ -353,6 +362,9 @@
                     <td>${t.w}</td>
                     <td>${t.l}</td>
                     <td>${t.d}</td>
+                    <td>${t.gf}</td>
+                    <td>${t.ga}</td>
+                    <td class="col-gd">${t.gd > 0 ? '+' + t.gd : t.gd}</td>
                     <td><strong>${t.pts}</strong></td>
                 </tr>
             `;
@@ -383,7 +395,6 @@
 
         document.getElementById('matchTitle').innerText = matchData.label;
         
-        // Find team names based on IDs
         const teamA = isKnockout ? matchData.teamA : teams[matchData.teamAIndex];
         const teamB = isKnockout ? matchData.teamB : teams[matchData.teamBIndex];
 
@@ -412,15 +423,25 @@
         }
 
         let matchData;
-        let tA, tB;
 
         if (!isKnockout) {
             matchData = groupMatches[currentMatchIndex];
-            tA = teams[matchData.teamAIndex];
-            tB = teams[matchData.teamBIndex];
+            let tA = teams[matchData.teamAIndex];
+            let tB = teams[matchData.teamBIndex];
 
-            // Update Group Stage Stats
+            // Update Matches Played
             tA.p++; tB.p++;
+
+            // --> NEW: UPDATE GOALS FOR, GOALS AGAINST, AND GOAL DIFFERENCE <--
+            tA.gf += currentScore.A;
+            tA.ga += currentScore.B;
+            tA.gd = tA.gf - tA.ga;
+
+            tB.gf += currentScore.B;
+            tB.ga += currentScore.A;
+            tB.gd = tB.gf - tB.ga;
+
+            // Update Wins/Losses/Draws
             if (currentScore.A > currentScore.B) {
                 tA.w++; tB.l++;
                 tA.pts += 3;
@@ -433,10 +454,9 @@
             }
             renderTable();
         } else {
-            // Knockout match process (Loser eliminated)
             matchData = knockoutMatches[currentMatchIndex];
             const winner = currentScore.A > currentScore.B ? matchData.teamA : matchData.teamB;
-            matchData.winner = winner; // Save the winner
+            matchData.winner = winner; 
         }
 
         currentMatchIndex++;
@@ -449,19 +469,22 @@
         currentMatchIndex = 0;
         
         const numQualifiers = parseInt(document.getElementById('numQualifiers').value);
-        let sortedTeams = [...teams].sort((a, b) => b.pts - a.pts);
         
-        knockoutTeams = sortedTeams.slice(0, numQualifiers); // Get top X teams
+        // Re-run the tie-breaker sort one last time before picking qualifiers
+        let sortedTeams = [...teams].sort((a, b) => {
+            if (b.pts !== a.pts) return b.pts - a.pts; 
+            if (b.gd !== a.gd) return b.gd - a.gd;     
+            return b.gf - a.gf;                        
+        });
         
-        // Shuffle for random pairings
-        knockoutTeams.sort(() => Math.random() - 0.5);
+        knockoutTeams = sortedTeams.slice(0, numQualifiers); 
+        knockoutTeams.sort(() => Math.random() - 0.5); // Shuffle matches
         
         alert(`Group stage complete! Top ${numQualifiers} teams are advancing to the Qualifiers.`);
         
         generateKnockoutMatches();
     }
 
-    // Create Pairings for Current Knockout Round
     function generateKnockoutMatches() {
         knockoutMatches = [];
         currentMatchIndex = 0;
@@ -477,17 +500,13 @@
         loadNextMatch();
     }
 
-    // Move to next knockout round or declare champion
     function progressKnockoutRound() {
-        // Collect winners from the round
         let advancingTeams = knockoutMatches.map(m => m.winner);
         
         if (advancingTeams.length === 1) {
-            // We have a champion!
             document.getElementById('championName').innerText = advancingTeams[0].name;
             document.getElementById('championModal').style.display = 'flex';
         } else {
-            // Next round
             knockoutTeams = advancingTeams;
             alert(`Round complete! ${knockoutTeams.length} teams remaining.`);
             generateKnockoutMatches();
